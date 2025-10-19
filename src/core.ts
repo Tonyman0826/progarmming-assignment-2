@@ -59,22 +59,30 @@ export function splitBill(input: BillInput): BillOutput {
 export function formatDate(date: string): string {
   // input format: YYYY-MM-DD, e.g. "2024-03-21"
   // output format: YYYY年M月D日, e.g. "2024年3月21日"
-  return ''
+  const [year, month, day] = date.split('-')
+  return `${year}年${parseInt(month)}月${parseInt(day)}日`
 }
 
 function calculateSubTotal(items: BillItem[]): number {
   // sum up all the price of the items
-  return 0
+  return items.reduce((total, item) => total + item.price, 0)
 }
 
 export function calculateTip(subTotal: number, tipPercentage: number): number {
   // output round to closest 10 cents, e.g. 12.34 -> 12.3
-  return -1
+  const tip = subTotal * (tipPercentage / 100)
+  return Math.round(tip * 10) / 10
 }
 
 function scanPersons(items: BillItem[]): string[] {
   // scan the persons in the items
-  return []
+  const persons = new Set<string>()
+  items.forEach(item => {
+    if (!item.isShared && 'person' in item) {
+      persons.add(item.person)
+    }
+  })
+  return Array.from(persons)
 }
 
 function calculateItems(
@@ -103,9 +111,30 @@ function calculatePersonAmount(input: {
   // for shared items, split the price evenly
   // for personal items, do not split the price
   // return the amount for the person
-  return 0
+  let amount = 0
+  
+  input.items.forEach(item => {
+    if (item.isShared) {
+      // 均分項目：按人數平分
+      amount += item.price / input.persons
+    } else if ('person' in item && item.person === input.name) {
+      // 個人項目：全額計算
+      amount += item.price
+    }
+  })
+  
+  // 加上小費
+  const tip = amount * (input.tipPercentage / 100)
+  return amount + tip
 }
 
 function adjustAmount(totalAmount: number, items: PersonItem[]): void {
   // adjust the personal amount to match the total amount
+  const calculatedTotal = items.reduce((sum, item) => sum + item.amount, 0)
+  const difference = totalAmount - calculatedTotal
+  
+  if (Math.abs(difference) > 0.01) {
+    // 將差異加到第一個人的金額上
+    items[0].amount += difference
+  }
 }
